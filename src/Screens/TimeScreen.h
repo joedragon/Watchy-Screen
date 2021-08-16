@@ -17,6 +17,10 @@ class TimeScreen : public Screen {
   //Helper functions
   void SetTextColor();
   void drawCentreString(const String &buf, int x, int y);
+  void check_rtc_time();
+  int MydayOfWeek(uint16_t year, uint8_t month, uint8_t day);
+  void Val_To_Day(uint8_t day);
+
   //Drawing Main Watch Face
   void Draw_Time();
   void Draw_Weather();

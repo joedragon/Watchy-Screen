@@ -17,6 +17,10 @@ using namespace Watchy;
 
 //My Defs
 #define BT_DEBUG true
+
+//Leap year def
+#define LEAP_YEAR(Y)     ( (Y>0) && !(Y%4) && ( (Y%100) || !(Y%400) ))     // from time-lib
+String Current_Day = "";
 //UI control
 #define DARKMODE false
 
@@ -46,6 +50,53 @@ struct tm tim;
 //#######################################
 //Helper Functions
 //#######################################
+
+
+void TimeScreen::Val_To_Day(uint8_t day){
+switch (day) {
+  case 0:
+    Current_Day = "Monday";
+    break;
+  case 1:
+    Current_Day = "Tuesday";
+    break;
+  case 2:
+    Current_Day = "Wednesday";
+    break;
+  case 3:
+    Current_Day = "Thursday";
+    break;
+  case 4:
+    Current_Day = "Friday";
+    break;
+  case 5:
+    Current_Day = "Saturday";
+    break;
+  case 6:
+    Current_Day = "Sunday";
+    break;
+  default:
+    Current_Day = "NAN";
+    break;
+}
+    }
+
+//This is a stop gap function, while i try and work out why Wday is not working as expected
+int TimeScreen::MydayOfWeek(uint16_t year, uint8_t month, uint8_t day)
+{
+  uint16_t months[] = {
+    0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365         };   // days until 1st of month
+
+  uint32_t days = year * 365;        // days until year 
+  for (uint16_t i = 4; i < year; i += 4) if (LEAP_YEAR(i) ) days++;     // adjust leap years, test only multiple of 4 of course
+
+  days += months[month-1] + day;    // add the days of this year
+  if ((month > 2) && LEAP_YEAR(year)) days++;  // adjust 1 if this year is a leap year, but only after febr
+
+  return days % 7;   // remove all multiples of 7
+
+}
+
 void TimeScreen::SetTextColor(){
   if (bgColor == GxEPD_WHITE){
     TextColor = GxEPD_BLACK;
@@ -76,6 +127,58 @@ int TimeScreen::getNumberOfLines(String data) {
 }
 
 
+
+//void TimeScreen::check_rtc_time(){
+//    Serial.println("RECEVED FROM BT");
+//    tmElements_t BTLTime;
+//    BTLTime.Month = (String(timeStr[12]) + String(timeStr[13])).toInt(); //month is zero indexed...
+//    BTLTime.Day = (String(timeStr[9]) + String(timeStr[10])).toInt();
+//    BTLTime.Year = (String(timeStr[15]) + String(timeStr[16]) + String(timeStr[17]) + String(timeStr[18])).toInt() - 1900;
+//    ;
+//    BTLTime.Hour = (String(timeStr[0]) + String(timeStr[1])).toInt() + (SETTING_DAYLIGHT_SAVINGS);
+//    BTLTime.Minute = (String(timeStr[3]) + String(timeStr[4])).toInt();
+//    BTLTime.Second = (String(timeStr[6]) + String(timeStr[7])).toInt();
+//    Serial.print("Month : ");
+//    Serial.println(BTLTime.Month);
+//    Serial.print("Day : ");
+//    Serial.println(BTLTime.Day);
+//    Serial.print("Year : ");
+//    Serial.println(BTLTime.Year);
+//    Serial.print("Hour : ");
+//    Serial.println(BTLTime.Hour);
+//    Serial.print("Minute : ");
+//    Serial.println(BTLTime.Minute);
+//    Serial.print("Second : ");
+//    Serial.println(BTLTime.Second);
+//    Serial.print("Week day : ");
+//    Serial.println(BTLTime.Wday);
+//    Serial.print("My weekday");
+//    Serial.println(MydayOfWeek(BTLTime.Year,BTLTime.Month,BTLTime.Day));
+//
+//    tmElements_t currentTime;
+//    RTC.read(currentTime);
+//    Serial.println("GETTING TIME FROM RTC");
+//    Serial.print("Month : ");
+//    Serial.println(currentTime.Month);
+//    Serial.print("Day : ");
+//    Serial.println(currentTime.Day);
+//    Serial.print("Year : ");
+//    Serial.println(currentTime.Year);
+//    Serial.print("Hour : ");
+//    Serial.println(currentTime.Hour);
+//    Serial.print("Minute : ");
+//    Serial.println(currentTime.Minute);
+//    Serial.print("Second : ");
+//    Serial.println(currentTime.Second);
+//    Serial.print("Week day : ");
+//    Serial.println(currentTime.Wday);
+//    Serial.print("My weekday");
+//    Serial.println(MydayOfWeek(currentTime.Year,currentTime.Month,currentTime.Day));
+//
+//
+//}
+
+
 void TimeScreen::update_RTC_from_BT(){
     tmElements_t BTLTime;
     BTLTime.Month = (String(timeStr[12]) + String(timeStr[13])).toInt(); //month is zero indexed...
@@ -87,14 +190,17 @@ void TimeScreen::update_RTC_from_BT(){
     BTLTime.Second = (String(timeStr[6]) + String(timeStr[7])).toInt();
 
 
+    Serial.println("######## UPDATING RTC ###########");
     makeTime(BTLTime);
-    time_t t = makeTime(BTLTime) + FUDGE;
+    time_t t = makeTime(BTLTime);
     RTC.set(t);
 }
 void TimeScreen::Check_BTtime_to_RTC(){
     Serial.println("Checking BT time Dif");
     tmElements_t BTLTime;
 
+    Serial.print("Time string");
+    Serial.println(timeStr);
     BTLTime.Month = (String(timeStr[12]) + String(timeStr[13])).toInt(); //month is zero indexed...
     BTLTime.Day = (String(timeStr[9]) + String(timeStr[10])).toInt();
     BTLTime.Year = (String(timeStr[15]) + String(timeStr[16]) + String(timeStr[17]) + String(timeStr[18])).toInt() - 1900;
@@ -112,6 +218,8 @@ void TimeScreen::Check_BTtime_to_RTC(){
     {
         Serial.println("Minuites are out by" + String(MIN_LOSS) + " Updating");
         update_RTC_from_BT();
+    } else{
+        Serial.println("Everthing looks ok");
     }
     
 }
@@ -224,6 +332,7 @@ void TimeScreen::getNotifications()
 //Main Code entery
 //#######################################
 void TimeScreen::show() {
+    Serial.begin(115200);
     initBLE();
     SetTextColor();
     Watchy::display.fillScreen(bgColor);
@@ -235,14 +344,12 @@ void TimeScreen::show() {
     Draw_Sensors();
     Draw_Icons();
     display.display(true);
-    #ifdef BT_DEBUG
-        Serial.begin(115200);
-    #endif
     getNotifications();
     getTime();
 
     if (timeStr != ""){
-        update_RTC_from_BT();
+        //check_rtc_time();
+        Check_BTtime_to_RTC();
     }
     if (notificationData != ""){
         int Linecount = getNumberOfLines(notificationData);
@@ -251,7 +358,7 @@ void TimeScreen::show() {
         #ifdef BT_DEBUG
             Serial.println("Priting notification data");
             Serial.println(notificationData);
-            Serial.print("Line Count : ");
+            Serial.print("Line Count's : ");
             Serial.println(Linecount);
             Serial.println("Printing time data");
             Serial.println(timeStr);
@@ -290,22 +397,25 @@ void TimeScreen::Draw_base_UI()
 }
 void TimeScreen::Draw_Time()
 {
-    tmElements_t currentTime;
-    RTC.read(currentTime);
+    tmElements_t RTC_Time;
+    //Read the RTC to get the curret time
+    RTC.read(RTC_Time);
+    //Setting the fonts and text colors. 
     display.setFont(&Symtext30pt7b);
     display.setTextColor(TextColor);
     String timeString = "";
-    if (currentTime.Hour < 10)
+    //Displays an extra 0 at the begining if the value is less then 10
+    if (RTC_Time.Hour < 10)
     {
        timeString = timeString + "0";
     }
-    timeString = timeString + currentTime.Hour;
+    timeString = timeString + RTC_Time.Hour;
     timeString = timeString + ":";
-    if (currentTime.Minute < 10)
+    if (RTC_Time.Minute < 10)
     {
     timeString = timeString + "0";
     }
-    timeString = timeString + currentTime.Minute;
+    timeString = timeString + RTC_Time.Minute;
     drawCentreString(timeString,105,53);
     
     
@@ -313,20 +423,22 @@ void TimeScreen::Draw_Time()
     //Drawing date
     String dateString = "";
     String tmp = "";
+    int day_num;
     display.setFont(&Symtext10pt7b);
     display.setCursor(30, 185);
     display.setTextColor(TextColor);
-    tmp = dayStr(currentTime.Wday);
-    tmp = tmp.substring(0,3);
+    day_num = MydayOfWeek(RTC_Time.Year,RTC_Time.Month,RTC_Time.Day);
+    Val_To_Day(day_num);
+    Serial.println(Current_Day);
+    tmp = Current_Day.substring(0,3);
     dateString = dateString + tmp;
     dateString = dateString + ", ";  
-    if(currentTime.Day < 10){
+    if(RTC_Time.Day < 10){
     dateString = dateString + "0";      
     }   
-    dateString = dateString + currentTime.Day;
+    dateString = dateString + RTC_Time.Day;
     dateString = dateString + ", ";  
-    dateString = dateString + monthShortStr(currentTime.Month);
-    //display.print("Mon, 12, Jun");
+    dateString = dateString + monthShortStr(RTC_Time.Month);
     drawCentreString(dateString,125,185);
 }
 void TimeScreen::Draw_Weather()
