@@ -24,14 +24,19 @@ using namespace Watchy;
 #define SETTING_DAYLIGHT_SAVINGS 0
 #define BT_TIME_UPDATE_INTERVAL 1440 //in minutes
 RTC_DATA_ATTR int TimeIntervalCounter = BT_TIME_UPDATE_INTERVAL;
+//How many Minutes the watch can lose before it updates from the BT clock
+#define MIN_LOSS 2
+#define FUDGE 2
+
 
 //---- Notification managment -----
-#define CONNECTED_TRY_LIMET 3
+#define CONNECTED_TRY_LIMET 2
 #define TIME_MAX_TRY 10
 const char max_try = 100;
 const char retry_delay = 10;
 boolean notificationsUpdated = false;
 boolean timeUpdated = false;
+RTC_DATA_ATTR int LastNotifcationCount;
 //-------- TIME MANAGMENT -----
 String timeStr = "";
 struct tm tim;
@@ -60,8 +65,56 @@ void TimeScreen::drawCentreString(const String &buf, int x, int y)
     display.print(buf);
 }
 
+int TimeScreen::getNumberOfLines(String data) {
+  int lineCount = 0;
+  for (int a = 0; a < data.length(); a++) {
+    if (data[a] == '\n') {
+      lineCount++;
+    }
+  }
+  return lineCount;
+}
 
 
+void TimeScreen::update_RTC_from_BT(){
+    tmElements_t BTLTime;
+    BTLTime.Month = (String(timeStr[12]) + String(timeStr[13])).toInt(); //month is zero indexed...
+    BTLTime.Day = (String(timeStr[9]) + String(timeStr[10])).toInt();
+    BTLTime.Year = (String(timeStr[15]) + String(timeStr[16]) + String(timeStr[17]) + String(timeStr[18])).toInt() - 1900;
+    ;
+    BTLTime.Hour = (String(timeStr[0]) + String(timeStr[1])).toInt() + (SETTING_DAYLIGHT_SAVINGS);
+    BTLTime.Minute = (String(timeStr[3]) + String(timeStr[4])).toInt();
+    BTLTime.Second = (String(timeStr[6]) + String(timeStr[7])).toInt();
+
+
+    makeTime(BTLTime);
+    time_t t = makeTime(BTLTime) + FUDGE;
+    RTC.set(t);
+}
+void TimeScreen::Check_BTtime_to_RTC(){
+    Serial.println("Checking BT time Dif");
+    tmElements_t BTLTime;
+
+    BTLTime.Month = (String(timeStr[12]) + String(timeStr[13])).toInt(); //month is zero indexed...
+    BTLTime.Day = (String(timeStr[9]) + String(timeStr[10])).toInt();
+    BTLTime.Year = (String(timeStr[15]) + String(timeStr[16]) + String(timeStr[17]) + String(timeStr[18])).toInt() - 1900;
+    ;
+    BTLTime.Hour = (String(timeStr[0]) + String(timeStr[1])).toInt() + (SETTING_DAYLIGHT_SAVINGS);
+    BTLTime.Minute = (String(timeStr[3]) + String(timeStr[4])).toInt();
+    BTLTime.Second = (String(timeStr[6]) + String(timeStr[7])).toInt();
+
+    tmElements_t currentTime;
+    RTC.read(currentTime);
+    if (currentTime.Hour != BTLTime.Hour){
+        Serial.println("Hours Do not match Updating");
+        update_RTC_from_BT();
+    } else if ((abs(currentTime.Minute - BTLTime.Minute) >= MIN_LOSS))
+    {
+        Serial.println("Minuites are out by" + String(MIN_LOSS) + " Updating");
+        update_RTC_from_BT();
+    }
+    
+}
 
 //#######################################
 //BLE Functions
@@ -171,29 +224,49 @@ void TimeScreen::getNotifications()
 //Main Code entery
 //#######################################
 void TimeScreen::show() {
-  initBLE();
-  SetTextColor();
-  Watchy::display.fillScreen(bgColor);
-  Draw_base_UI();
-  Draw_Time();
-  Draw_Weather();
-  Draw_Battery();
-  Draw_Steps();
-  Draw_Notifcations();
-  Draw_Sensors();
-   display.display(true);
-#ifdef BT_DEBUG
-    Serial.begin(115200);
-#endif
+    initBLE();
+    SetTextColor();
+    Watchy::display.fillScreen(bgColor);
+    Draw_base_UI();
+    Draw_Time();
+    Draw_Weather();
+    Draw_Battery();
+    Draw_Steps();
+    Draw_Sensors();
+    Draw_Icons();
+    display.display(true);
+    #ifdef BT_DEBUG
+        Serial.begin(115200);
+    #endif
     getNotifications();
     getTime();
-#ifdef BT_DEBUG
-    Serial.println("Priting notification data");
-    Serial.println(notificationData);
-    Serial.println("Printing time data");
-    Serial.println(timeStr);
-    Serial.println("-------------------------------");
-#endif
+
+    if (timeStr != ""){
+        update_RTC_from_BT();
+    }
+    if (notificationData != ""){
+        int Linecount = getNumberOfLines(notificationData);
+        Draw_Notifcations_Text(Linecount);
+        LastNotifcationCount = Linecount;
+        #ifdef BT_DEBUG
+            Serial.println("Priting notification data");
+            Serial.println(notificationData);
+            Serial.print("Line Count : ");
+            Serial.println(Linecount);
+            Serial.println("Printing time data");
+            Serial.println(timeStr);
+            Serial.println("-------------------------------");
+        #endif
+    }
+    else if (LastNotifcationCount > 0)
+    {
+        Draw_Notifcations_Text(LastNotifcationCount);
+    }
+    else{
+        Draw_Notifcations_Text(0);
+    }
+
+
 
 
   // ignore warning about txt not initialized, assert guarantees it will be
@@ -214,7 +287,6 @@ void TimeScreen::show() {
 void TimeScreen::Draw_base_UI()
 {
     display.drawBitmap(0, 70, myimageFace_Lines_UI, 200, 88, TextColor);
-    //display.drawLine(0,52,29,81,DARKMODE ? GxEPD_WHITE : GxEPD_BLACK);
 }
 void TimeScreen::Draw_Time()
 {
@@ -234,7 +306,7 @@ void TimeScreen::Draw_Time()
     timeString = timeString + "0";
     }
     timeString = timeString + currentTime.Minute;
-    drawCentreString(timeString,110,53);
+    drawCentreString(timeString,105,53);
     
     
     
@@ -253,7 +325,7 @@ void TimeScreen::Draw_Time()
     }   
     dateString = dateString + currentTime.Day;
     dateString = dateString + ", ";  
-    dateString = dateString + monthShortStr(currentTime.Month + 1);
+    dateString = dateString + monthShortStr(currentTime.Month);
     //display.print("Mon, 12, Jun");
     drawCentreString(dateString,125,185);
 }
@@ -317,12 +389,22 @@ void TimeScreen::Draw_Steps()
     drawCentreString(StepCountStr + String(stepCount),100,150);
     //display.print(stepCount);
 }
-void TimeScreen::Draw_Notifcations()
-{
-    display.setFont(&Symtext7pt7b);
+void TimeScreen::Draw_Icons(){
     display.drawBitmap(169, 104, myimageNotifcation_Icon, 35, 35, TextColor);
+}
+void TimeScreen::Draw_Notifcations_Text(int count)
+{
+    String countToString;
+    if (count < 10) {
+        countToString = "0";
+        countToString =  countToString + String(count);
+    }
+    else {
+       countToString = String(count); 
+    }
+    display.setFont(&Symtext7pt7b);
     display.setCursor(155, 152);
-    display.print("99");
+    display.print(countToString);
 }
 void TimeScreen::Draw_Sensors()
 {

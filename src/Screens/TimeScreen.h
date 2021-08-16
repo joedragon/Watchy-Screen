@@ -7,10 +7,13 @@ class TimeScreen : public Screen {
   TimeScreen(uint16_t bg = GxEPD_WHITE) : Screen(bg) {}
   uint16_t TextColor;
   void show() override;
-
+  int getNumberOfLines(String data);
   //BT functions
   void getTime();
   void getNotifications();
+  //Time Setting functions
+  void update_RTC_from_BT();
+  void Check_BTtime_to_RTC();
   //Helper functions
   void SetTextColor();
   void drawCentreString(const String &buf, int x, int y);
@@ -21,5 +24,6 @@ class TimeScreen : public Screen {
   void Draw_Steps();
   void Draw_base_UI();
   void Draw_Sensors();
-  void Draw_Notifcations();
+  void Draw_Icons();
+  void Draw_Notifcations_Text(int count);
 };

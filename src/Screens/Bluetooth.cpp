@@ -29,6 +29,7 @@ BLECharacteristic *commandCharacteristic;
 String notificationData = "";
 
 
+
 void addData(String data) {
   printDebug("Received:" + data);
   currentDataField += data;

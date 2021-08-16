@@ -49,9 +49,9 @@ ImageScreen weather(cloud, 96, 96, "weather", OptimaLTStd22pt7b);
 ImageScreen notifications(myimageNotifcation_Icon,35,35,"Notifcations",OptimaLTStd22pt7b);
 
 CarouselItem carouselItems[] = {{&timeScreen, nullptr},
-                                {&notifications, &notificationScreen},
                                 {&weather, &weatherScreen},
-                                {&settings, &menu}};
+                                {&settings, &menu},
+                                {&notifications, &notificationScreen}};
 
 CarouselScreen carousel(carouselItems,
                         sizeof(carouselItems) / sizeof(carouselItems[0]));
