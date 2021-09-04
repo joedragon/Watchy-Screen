@@ -1,3 +1,4 @@
+#pragma once
 /*****************************************************************************
   The MIT License (MIT)
   Copyright (c) 2020 Matthew James Bellafaire
@@ -26,7 +27,7 @@
                               DEBUG
  *******************************************************************/
 //prints debug information to the serial terminal when declared
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #define printDebug(a) Serial.println(a)
@@ -81,3 +82,6 @@ void addData(String data);  //adds data to a current string, used within BLEServ
 void initBLE(); //initializes the BLE connection by starting advertising.
 
 extern boolean calculatorActive;
+
+
+//My declerations

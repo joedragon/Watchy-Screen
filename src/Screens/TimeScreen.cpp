@@ -12,6 +12,7 @@
 #include "Symtext30pt7b.h"
 #include "Declarations.h"
 #include "Watchy.h"
+#include "BTVars.h"
 using namespace Watchy;
 
 
@@ -28,14 +29,13 @@ String Current_Day = "";
 #define SETTING_DAYLIGHT_SAVINGS 0
 #define BT_TIME_UPDATE_INTERVAL 1440 //in minutes
 RTC_DATA_ATTR int TimeIntervalCounter = BT_TIME_UPDATE_INTERVAL;
+RTC_DATA_ATTR int Last_Day = -1;
 //How many Minutes the watch can lose before it updates from the BT clock
 #define MIN_LOSS 2
 #define FUDGE 2
 
 
 //---- Notification managment -----
-#define CONNECTED_TRY_LIMET 2
-#define TIME_MAX_TRY 10
 const char max_try = 100;
 const char retry_delay = 10;
 boolean notificationsUpdated = false;
@@ -52,6 +52,8 @@ struct tm tim;
 //#######################################
 
 
+
+//Converts Time value to days
 void TimeScreen::Val_To_Day(uint8_t day){
 switch (day) {
   case 0:
@@ -97,6 +99,7 @@ int TimeScreen::MydayOfWeek(uint16_t year, uint8_t month, uint8_t day)
 
 }
 
+//Sets the text color to the inverse of the background color
 void TimeScreen::SetTextColor(){
   if (bgColor == GxEPD_WHITE){
     TextColor = GxEPD_BLACK;
@@ -107,6 +110,7 @@ void TimeScreen::SetTextColor(){
 }
 
 
+//Draws strings in the centure of the screen
 void TimeScreen::drawCentreString(const String &buf, int x, int y)
 {
     int16_t x1, y1;
@@ -116,6 +120,12 @@ void TimeScreen::drawCentreString(const String &buf, int x, int y)
     display.print(buf);
 }
 
+
+
+//#######################################
+//Notifcation Settings
+//#######################################
+//Gets the number of lines in notifcations
 int TimeScreen::getNumberOfLines(String data) {
   int lineCount = 0;
   for (int a = 0; a < data.length(); a++) {
@@ -233,7 +243,7 @@ void TimeScreen::getTime()
     boolean success = false;
     int trycount = 0;
     int conected_try_count = 0;
-    boolean Got_message = false;
+    //boolean Got_message = false;
     while (trycount <= TIME_MAX_TRY && (success == false))
     {
         if (connected && (trycount <= max_try))
@@ -245,7 +255,7 @@ void TimeScreen::getTime()
                 {
                     notificationsUpdated = true;
                     Serial.println("time is updating");
-                    Got_message = true;
+                    //Got_message = true;
                     trycount = max_try + 1;
                     conected_try_count = CONNECTED_TRY_LIMET + 1;
                     break;
@@ -281,7 +291,7 @@ void TimeScreen::getNotifications()
     boolean success = false;
     char trycount = 0;
     int conected_try_count = 0;
-    boolean Got_message = false;
+    //boolean Got_message = false;
     while (trycount <= max_try && (success == false))
     {
         if (connected)
@@ -294,7 +304,7 @@ void TimeScreen::getNotifications()
                 {
                     notificationsUpdated = true;
                     printDebug("notifications updating");
-                    Got_message = true;
+                    //Got_message = true;
                     trycount = max_try + 1;
                     conected_try_count = CONNECTED_TRY_LIMET + 1;
                     break;
@@ -318,7 +328,7 @@ void TimeScreen::getNotifications()
             //gets current android notifications as a string
             String timeStr = "";
             boolean success = sendBLE("/time", &timeStr, true);
-            Got_message = true;
+            //Got_message = true;
             trycount = max_try + 1;
         }
         Serial.println("Trying to connect notifcations ? ");
@@ -456,27 +466,37 @@ void TimeScreen::Draw_Battery()
     {
         display.drawBitmap(2, 117, myimagenewBattery3, 22, 19, TextColor);
     }
-    else if (VBAT > 3.80 && VBAT <= 3.95)
+    else if (VBAT > 3.71 && VBAT <= 3.95)
     {
         display.drawBitmap(2, 117, myimagenewBattery2, 22, 19, TextColor);
     }
-    else if (VBAT <= 3.80)
+    else if (VBAT <= 3.70)
     {
         display.drawBitmap(2, 117, myimagenewBattery1, 22, 19, TextColor);
     }
 
-    int batleft = (((VBAT*111.905) - 370) / 100) * 100;
+    //int batleft = (((VBAT*111.905) - 370) / 100) * 100;
     display.setFont(&Symtext7pt7b);
     display.setCursor(3, 152);
-    if (batleft < 10)
-    {
-        display.print("0");
-    }
-    display.print(batleft);
-    display.print("%");
+    //if (batleft < 10)
+    //{
+    //    display.print("0");
+    //}
+    display.print(VBAT);
+    display.print("v");
 }
 void TimeScreen::Draw_Steps()
 {
+
+    tmElements_t RTC_Time;
+    //Read the RTC to get the curret time
+    RTC.read(RTC_Time);
+    //Resets the step count, if it is the next day
+    if (Last_Day != RTC_Time.Day){
+        sensor.resetStepCounter();
+        Last_Day = RTC_Time.Day;
+    }
+    //Draws the step count
     display.drawBitmap(83, 109, myimageroad_icon, 35, 35, TextColor);
     uint32_t stepCount = sensor.getCounter();
     String StepCountStr = "";
